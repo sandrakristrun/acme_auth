@@ -6,23 +6,36 @@ const path = require('path');
 
 app.get('/', (req, res)=> res.sendFile(path.join(__dirname, 'index.html')));
 
-app.post('/api/auth', async(req, res, next)=> {
+const requireToken = async (req, res, next) => {
   try {
-    res.send({ token: await User.authenticate(req.body)});
+    const token = req.headers.authorization;
+    const user = await User.byToken(token);
+    req.user = user;
+    next();
+  } catch(error) {
+    next(error);
   }
-  catch(ex){
+};
+
+app.post("/api/auth", async (req, res, next) => {
+  try {
+    const user = await User.authenticate(req.body);
+    if(!user) res.sendStatus(404);
+    const token = await user.generateToken();
+    res.send(token);
+  } catch (ex) {
     next(ex);
   }
 });
 
-app.get('/api/auth', async(req, res, next)=> {
-  try {
-    res.send(await User.byToken(req.headers.authorization));
-  }
-  catch(ex){
-    next(ex);
+app.get('/api/auth', requireToken, async(req, res, next) => {
+  if(req.user) {
+    res.send(req.user);
+  } else {
+    res.sendStatus(404);
   }
 });
+
 
 app.use((err, req, res, next)=> {
   console.log(err);
